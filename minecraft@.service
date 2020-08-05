@@ -3,13 +3,13 @@ Description=Minecraft Server %i
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/minecraft/%i
+WorkingDirectory=/srv/games/minecraft/%i
 
 PrivateUsers=true
 # Users Database is not available for within the unit, only root and minecraft is available, everybody else is nobody
 
-User=minecraft
-Group=minecraft
+User=game
+Group=data
 
 ProtectSystem=full
 # Read only mapping of /usr /boot and /etc
@@ -30,41 +30,27 @@ ProtectControlGroups=true
 # Implies MountAPIVFS=yes
 
 # Set default memory values
-Environment="MCMINMEM=512M" "MCMAXMEM=1024M" "SHUTDOWN_DELAY=5" "POST_SHUTDOWN_DELAY=10"
+Environment="MC_MAX_MEM=1024M" "MC_SHUTDOWN_DELAY=5" "MC_POST_SHUTDOWN_DELAY=10"
 # Change memory values in environment file
-EnvironmentFile=-/opt/minecraft/%i/server.conf
+EnvironmentFile=-/srv/games/minecraft/%i/server.conf
 
 # Uncomment this to fix screen on RHEL 8
 #ExecStartPre=+/bin/sh -c 'chmod 777 /run/screen'
 
-ExecStart=/bin/sh -c \
-    'find -L . \
-      -maxdepth 1 \
-      -type f \
-      -iregex ".*/\\(FTBServer\\|craftbukkit\\|spigot\\|paper\\|forge\\|minecraft_server\\).*jar" \
-      -print0 \
-      -quit \
-    | xargs -0 -I{} \
-      /usr/bin/screen -DmS mc-%i \
-        /usr/bin/java \
-          -server \
-          -Xms${MCMINMEM} \
-          -Xmx${MCMAXMEM} \
-          -XX:+UseG1GC \
-          -XX:+CMSClassUnloadingEnabled \
-          -XX:ParallelGCThreads=2 \
-          -XX:MinHeapFreeRatio=5 \
-          -XX:MaxHeapFreeRatio=10 \
-          -jar {} \
-          nogui'
+ExecStart=/bin/bash -c "/srv/games/minecraft/main-run-server.sh %i"
+#ExecStartPost=/bin/bash -c "/usr/bin/tail -F /srv/games/minecraft/%i/logs/latest.log &"
 
 ExecReload=/usr/bin/screen -p 0 -S mc-%i -X eval 'stuff "reload"\\015'
 
-ExecStop=/usr/bin/screen -p 0 -S mc-%i -X eval 'stuff "say SERVER SHUTTING DOWN. Saving map..."\\015'
-ExecStop=/bin/sh -c '/bin/sleep ${SHUTDOWN_DELAY}'
+# I would REALLY like this world to be saved. even though i have backups.
+SendSIGKILL=no
+#KillMode=none
+
+ExecStop=/usr/bin/screen -p 0 -S mc-%i -X eval 'stuff "say server is shutting down! Saving map..."\\015'
+ExecStop=/bin/sh -c '/bin/sleep ${MC_SHUTDOWN_DELAY}'
 ExecStop=/usr/bin/screen -p 0 -S mc-%i -X eval 'stuff "save-all"\\015'
 ExecStop=/usr/bin/screen -p 0 -S mc-%i -X eval 'stuff "stop"\\015'
-ExecStop=/bin/sh -c '/bin/sleep ${POST_SHUTDOWN_DELAY}'
+ExecStop=/bin/sh -c '/bin/sleep ${MC_POST_SHUTDOWN_DELAY}'
 
 Restart=on-failure
 RestartSec=60s
